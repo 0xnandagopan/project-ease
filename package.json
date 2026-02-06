@@ -1,0 +1,23 @@
+{
+  "name": "project-ease",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.2",
+  "dependencies": {
+    "@aztec/bb.js": "^2.1.11",
+    "@noir-lang/noir_js": "1.0.0-beta.18",
+    "axios": "^1.13.4",
+    "dotenv": "^17.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.1",
+    "tsx": "^4.21.0"
+  }
+}
