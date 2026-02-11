@@ -1,113 +1,100 @@
-import { UltraHonkBackend } from "@aztec/bb.js";
-import { Noir } from "@noir-lang/noir_js";
-import path from "path";
+import { reg_vkey_with_zkv } from "./register_vk";
+import { CircuitDirectory } from "./types";
 import fs from "fs";
+import path from "path";
 import axios from "axios";
 import dotenv from "dotenv";
 dotenv.config();
 
-async function main() {
+async function main(circuitName: CircuitDirectory) {
   try {
-    const circuit_path = path.join(
+    const { KURIER_TESTNET_API, KURIER_TESTNET_URL } = process.env;
+    if (!KURIER_TESTNET_API || !KURIER_TESTNET_URL) {
+      throw new Error("[ERR_ENV]: Missing environment variables");
+    }
+
+    await reg_vkey_with_zkv(circuitName);
+
+    const VK_HASH = path.join(
+      __dirname,
+      "vkHashes",
+      `${circuitName}_vkHash.json`,
+    );
+
+    if (!fs.existsSync(VK_HASH)) {
+      throw new Error(`[ERR_VK_HASH]: ${VK_HASH} does not exist`);
+    }
+    const vk = JSON.parse(fs.readFileSync(VK_HASH, "utf8"));
+
+    const ZKV_PROOF_HEX_FILE_PATH = path.join(
       __dirname,
       "circuits",
       "target",
-      "circuit_name.json",
+      `${circuitName}_proof.hex`,
     );
-    const circuit = JSON.parse(fs.readFileSync(circuit_path, "utf-8"));
-    if (!circuit.bytecode) {
-      throw new Error("CIRCUIT_ERR: bytecode not found");
-    } else {
-      console.log(" ## Setting up proving backend. ");
+    if (!fs.existsSync(ZKV_PROOF_HEX_FILE_PATH)) {
+      throw new Error(
+        `[ERR_ZKV_PROOF]: ${ZKV_PROOF_HEX_FILE_PATH} does not exist`,
+      );
     }
+    const proof = fs.readFileSync(ZKV_PROOF_HEX_FILE_PATH, "utf8");
 
-    const noir = new Noir(circuit);
-    const backend = new UltraHonkBackend(circuit.bytecode);
-    const vkey = await backend.getVerificationKey({ keccakZK: true });
-    if (!vkey) {
-      throw new Error("VK_ERR: verification key not found");
-    }
-
-    const { VOLTA_KURIER_API, VOLTA_KURIER_URL } = process.env;
-    if (!VOLTA_KURIER_API || !VOLTA_KURIER_URL) {
-      throw new Error("ENV_ERR: missing environment variables");
-    }
-
-    const regParams = {
-      proofType: "ultrahonk",
-      proofOptions: { keccakZK: true },
-      vk: Buffer.from(vkey).toString("hex"),
-    };
-    console.log(" ## Registering verification key. ");
-    const regResponse = await axios.post(
-      `${VOLTA_KURIER_URL}/register-vk/${VOLTA_KURIER_API}`,
-      regParams,
+    const ZKV_PUBS_HEX_FILE_PATH = path.join(
+      __dirname,
+      "circuits",
+      "target",
+      `${circuitName}_pubs.hex`,
     );
-    const vkHash = regResponse.data.vkHash || regResponse.data.meta?.vkHash;
-    console.log(" ## Verification key registered successfully.");
-    console.log(`Verification key hash: ${vkHash}`);
-
-    console.log(" ## Generating witness. ");
-    const age = 23;
-    const { witness } = await noir.execute({ age });
-
-    console.log(" ## Generating proof. ");
-    const proofData = await backend.generateProof(witness, { keccakZK: true });
-    console.log(`Proof size: ${proofData.proof.length} bytes`);
-    console.log(`Public inputs: ${proofData.publicInputs.length}`);
-    const isValid = await backend.verifyProof(proofData);
-    if (!isValid) {
-      throw new Error("PROOF_ERR: proof is invalid");
-    } else {
-      console.log("Proof is valid");
+    if (!fs.existsSync(ZKV_PUBS_HEX_FILE_PATH)) {
+      throw new Error(
+        `[ERR_ZKV_PUBS]: ${ZKV_PUBS_HEX_FILE_PATH} does not exist`,
+      );
     }
+    const publicSignals = fs.readFileSync(ZKV_PUBS_HEX_FILE_PATH, "utf8");
 
-    const proofHex = Buffer.from(proofData.proof).toString("hex");
-    const publicInputsHex = proofData.publicInputs.map((input) =>
-      Buffer.from(input).toString("hex"),
-    );
-
-    // Step 3: Submit proof immediately
-    const params = {
+    console.log("## Verifying Proof w/ ZKV");
+    const proof_payload = {
       proofType: "ultrahonk",
       vkRegistered: true,
-      chainId: 11155111,
+      chainId: 84532,
       proofData: {
-        proof: proofHex,
-        publicSignals: publicInputsHex,
-        vk: vkHash,
+        proof: proof.split("\n")[0],
+        publicSignals: publicSignals.split("\n").slice(0, -1),
+        vk: vk.vkHash || vk.meta.vkHash,
       },
     };
-    console.log(" ## Sending proof to Volta Kuriér. ");
-    const requestResponse = await axios.post(
-      `${VOLTA_KURIER_URL}/submit-proof/${VOLTA_KURIER_API}`,
-      params,
-    );
-    console.log(requestResponse.data);
 
-    if (requestResponse.data.optimisticVerify !== "success") {
-      console.error("Proof verification, check proof artifacts");
-      return;
+    const proof_response = await axios.post(
+      `${KURIER_TESTNET_URL}/submit-proof/${KURIER_TESTNET_API}`,
+      proof_payload,
+    );
+    if (proof_response.data.optimisticVerify !== "success") {
+      throw new Error("[ERR: ZKV] Proof verification failed");
     }
+    console.log("Proof verified successfully");
+
+    const job_id = proof_response.data.jobId;
+    console.log(`##Job ID: ${job_id}`);
 
     while (true) {
-      const jobStatusResponse = await axios.get(
-        `${VOLTA_KURIER_URL}/job-status/${VOLTA_KURIER_API}/${requestResponse.data.jobId}`,
+      const job_status_response = await axios.get(
+        `${KURIER_TESTNET_URL}/job-status/${KURIER_TESTNET_API}/${job_id}`,
       );
-      if (jobStatusResponse.data.status === "Aggregated") {
-        console.log("Job aggregated successfully");
-        console.log(jobStatusResponse.data);
-        fs.writeFileSync(
-          "aggregation.json",
-          JSON.stringify({
-            ...jobStatusResponse.data.aggregationDetails,
-            aggregationId: jobStatusResponse.data.aggregationId,
-          }),
+      if (job_status_response.data.status === "Aggregated") {
+        console.log("##Job aggregated successfully");
+        console.log(job_status_response.data);
+        const aggregation_path = path.join(
+          __dirname,
+          "aggregations",
+          `${job_id}.json`, // job_status_response.data.aggregationId
         );
-        break;
+        fs.writeFileSync(
+          aggregation_path,
+          JSON.stringify(job_status_response.data),
+        );
       } else {
-        console.log("Job status: ", jobStatusResponse.data.status);
-        console.log("Waiting for job to aggregated...");
+        console.log("##Job status: ", job_status_response.data.status);
+        console.log(`==> Waiting for job to aggregated...`);
         await new Promise((resolve) => setTimeout(resolve, 20000)); // Wait for 5 seconds before checking again
       }
     }
@@ -116,4 +103,4 @@ async function main() {
   }
 }
 
-main();
+main(CircuitDirectory.CIRCUIT_NAME);
