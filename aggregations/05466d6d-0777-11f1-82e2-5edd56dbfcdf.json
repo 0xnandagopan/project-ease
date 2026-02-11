@@ -1,0 +1,24 @@
+{
+  "jobId": "05466d6d-0777-11f1-82e2-5edd56dbfcdf",
+  "status": "Aggregated",
+  "proofType": "ultrahonk",
+  "chainId": 84532,
+  "createdAt": "2026-02-11T18:25:20.000Z",
+  "updatedAt": "2026-02-11T18:28:08.000Z",
+  "proofOptions": {},
+  "txHash": "0xb81749879af3e4a29551dfe92a1246d7c9c83bfba1468e23ab4de6473fd10eee",
+  "txExplorerUrl": "https://zkverify-testnet.subscan.io/extrinsic/0xb81749879af3e4a29551dfe92a1246d7c9c83bfba1468e23ab4de6473fd10eee",
+  "blockHash": "0xe01c7a85a54908ed53b275d640235c3959bd00c4a103149b08ebddeea8145129",
+  "blockExplorerUrl": "https://zkverify-testnet.subscan.io/block/0xe01c7a85a54908ed53b275d640235c3959bd00c4a103149b08ebddeea8145129",
+  "aggregationId": 17027,
+  "statement": "0x700a0949821dbb25b9ddd6898c5a5784750b8c8565faf9824ea77e8990bdbe26",
+  "aggregationDetails": {
+    "receipt": "0xe76b1aa8d2d1720264146f66241d66f17f3e75d2a3ab4947f7b99cd5fa4cf351",
+    "receiptBlockHash": "0x0d7425ec5a812c652b785ce6c7fdcf8f4957c0859e15e2075b61acce49b27a55",
+    "root": "0xe76b1aa8d2d1720264146f66241d66f17f3e75d2a3ab4947f7b99cd5fa4cf351",
+    "leaf": "0x700a0949821dbb25b9ddd6898c5a5784750b8c8565faf9824ea77e8990bdbe26",
+    "leafIndex": 0,
+    "numberOfLeaves": 1,
+    "merkleProof": []
+  }
+}

@@ -37,7 +37,8 @@ async function main(circuitName: CircuitDirectory) {
         `[ERR_ZKV_PROOF]: ${ZKV_PROOF_HEX_FILE_PATH} does not exist`,
       );
     }
-    const proof = fs.readFileSync(ZKV_PROOF_HEX_FILE_PATH, "utf8");
+    const proofFile = fs.readFileSync(ZKV_PROOF_HEX_FILE_PATH, "utf8");
+    const proof = JSON.parse(proofFile);
 
     const ZKV_PUBS_HEX_FILE_PATH = path.join(
       __dirname,
@@ -50,7 +51,8 @@ async function main(circuitName: CircuitDirectory) {
         `[ERR_ZKV_PUBS]: ${ZKV_PUBS_HEX_FILE_PATH} does not exist`,
       );
     }
-    const publicSignals = fs.readFileSync(ZKV_PUBS_HEX_FILE_PATH, "utf8");
+    const publicSignalsFile = fs.readFileSync(ZKV_PUBS_HEX_FILE_PATH, "utf8");
+    const publicSignals = JSON.parse(publicSignalsFile);
 
     console.log("## Verifying Proof w/ ZKV");
     const proof_payload = {
@@ -58,21 +60,27 @@ async function main(circuitName: CircuitDirectory) {
       vkRegistered: true,
       chainId: 84532,
       proofData: {
-        proof: proof.split("\n")[0],
-        publicSignals: publicSignals.split("\n").slice(0, -1),
+        proof: proof.ZK,
+        publicSignals: publicSignals,
         vk: vk.vkHash || vk.meta.vkHash,
+      },
+      proofOptions: {
+        variant: "ZK",
       },
     };
 
     const proof_response = await axios.post(
       `${KURIER_TESTNET_URL}/submit-proof/${KURIER_TESTNET_API}`,
       proof_payload,
-    );
-    if (proof_response.data.optimisticVerify !== "success") {
-      throw new Error("[ERR: ZKV] Proof verification failed");
-    }
-    console.log("Proof verified successfully");
-
+    ).catch((error) => {
+      if (error.response) {
+        console.error("API Error:", error.response.status);
+        console.error("Details:", JSON.stringify(error.response.data, null, 2));
+      }
+      throw error;
+    });
+    console.log("Proof submission response:", JSON.stringify(proof_response.data, null, 2));
+    
     const job_id = proof_response.data.jobId;
     console.log(`##Job ID: ${job_id}`);
 
@@ -83,23 +91,37 @@ async function main(circuitName: CircuitDirectory) {
       if (job_status_response.data.status === "Aggregated") {
         console.log("##Job aggregated successfully");
         console.log(job_status_response.data);
+        
+        // Create aggregations directory if it doesn't exist
+        const aggregations_dir = path.join(__dirname, "aggregations");
+        if (!fs.existsSync(aggregations_dir)) {
+          fs.mkdirSync(aggregations_dir, { recursive: true });
+        }
+        
         const aggregation_path = path.join(
-          __dirname,
-          "aggregations",
-          `${job_id}.json`, // job_status_response.data.aggregationId
+          aggregations_dir,
+          `${job_id}.json`,
         );
         fs.writeFileSync(
           aggregation_path,
-          JSON.stringify(job_status_response.data),
+          JSON.stringify(job_status_response.data, null, 2),
         );
+        console.log(`## Aggregation result saved to ${aggregation_path}`);
+        break; // Exit loop after successful aggregation
+      } else if (job_status_response.data.status === "Failed") {
+        console.error("##Job failed:", job_status_response.data);
+        throw new Error("[ERR: ZKV] Proof aggregation failed");
       } else {
         console.log("##Job status: ", job_status_response.data.status);
-        console.log(`==> Waiting for job to aggregated...`);
-        await new Promise((resolve) => setTimeout(resolve, 20000)); // Wait for 5 seconds before checking again
+        console.log(`==> Waiting for job to be aggregated...`);
+        await new Promise((resolve) => setTimeout(resolve, 20000)); // Wait for 20 seconds before checking again
       }
     }
+    
+    console.log("## Proof verification completed successfully!");
   } catch (error) {
     console.error(error);
+    process.exit(1);
   }
 }
 
