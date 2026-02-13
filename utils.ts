@@ -1,3 +1,30 @@
+import { CircuitDir } from "./types";
+import path from "path";
+import fs from "fs";
+
+interface AbiParameter {
+  name: string;
+  type: { kind: string };
+  visibility: string;
+}
+
+interface CircuitAbi {
+  parameters: AbiParameter[];
+  return_type: any;
+  error_types: Record<string, any>;
+}
+
+interface CircuitJson {
+  noir_version: string;
+  hash: string;
+  abi: CircuitAbi;
+  bytecode: string;
+  debug_symbols: string;
+  file_map: Record<string, any>;
+  names: string[];
+  brillig_names: string[];
+}
+
 export function deflattenFields(flattenedFields: Uint8Array): string[] {
   const publicInputSize = 32;
   const chunkedFlattenedPublicInputs: Uint8Array[] = [];
@@ -57,4 +84,61 @@ export function hexToUint8Array(hex: string): Uint8Array {
   }
 
   return u8;
+}
+
+export function loadCircuitAbi(circuit_name: CircuitDir): CircuitAbi {
+  const circuitPath = path.join(
+    __dirname,
+    "circuits",
+    "target",
+    `${circuit_name}.json`,
+  );
+
+  if (!fs.existsSync(circuitPath)) {
+    throw new Error(`Circuit file not found: ${circuitPath}`);
+  }
+
+  const circuitData: CircuitJson = JSON.parse(
+    fs.readFileSync(circuitPath, "utf-8"),
+  );
+  if (!circuitData.abi) {
+    throw new Error(`[ERR: Circuit] Circuit ABI not found`);
+  }
+
+  return circuitData.abi;
+}
+
+export function extractAbiParameters(
+  input: any,
+  abi: CircuitAbi,
+): Record<string, any> {
+  const extractedParams: Record<string, any> = {};
+
+  for (const param of abi.parameters) {
+    if (!(param.name in input)) {
+      throw new Error(
+        `[ERR: Circuit] Missing required parameter: ${param.name} (${param.visibility})`,
+      );
+    }
+    extractedParams[param.name] = input[param.name];
+  }
+
+  return extractedParams;
+}
+
+export function validateAbiInput(input: any, abi: CircuitAbi): void {
+  if (typeof input !== "object" || input === null) {
+    throw new Error("Input must be an object");
+  }
+
+  const requiredParams = abi.parameters.map((p) => p.name);
+  const providedParams = Object.keys(input);
+
+  const missing = requiredParams.filter((p) => !providedParams.includes(p));
+
+  if (missing.length > 0) {
+    throw new Error(
+      `[ERR: Circuit] Missing required circuit input parameters: ${missing.join(", ")}`,
+    );
+  }
 }

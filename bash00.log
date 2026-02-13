@@ -1,0 +1,24 @@
+[dotenv@17.2.4] injecting env (2) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+[dotenv@17.2.4] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+[WARN: Verification Key] VK hash not found, registering new VK
+## Setting up Noir and Barretenberg
+## Generating Verification Key
+## Registering Verification Key at Kurier
+## Kurier vkHash for game_circuit circuit written to /home/ally/DevEnv/pvtDock/deploy_files/project-ease/circuits/target/game_circuit_vkHash.json
+## vkHash found: 0x2a9f2131a5770de8d1bb8c9e3a127fef348c89c625ec4fedfdb4087e7c23edd6
+## Setting up Noir and Barretenberg
+## Extracting parameters and matching inpus
+## Creating pivate witness
+## Generating Proof
+## Submitting Proof to Kurier
+Proof response status code: 200
+==> Submit Response:
+ {
+  "jobId": "21f451dc-089a-11f1-ba70-7286ae76ae34",
+  "optimisticVerify": "failed"
+}
+Error verifying proof with Kurier:
+ Error: [ERR: Proof Verification] Optimistic verification failed
+    at verifyKurier (/home/ally/DevEnv/pvtDock/deploy_files/project-ease/index.ts:116:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async main (/home/ally/DevEnv/pvtDock/deploy_files/project-ease/proof_verify.ts:10:3)

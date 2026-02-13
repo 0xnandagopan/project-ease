@@ -1,0 +1,23 @@
+{
+  "noir_version": "1.0.0-beta.6+e796dfd67726cbc28eb9991782533b211025928d",
+  "hash": "10057895297951980243",
+  "abi": {
+    "parameters": [
+      { "name": "x", "type": { "kind": "field" }, "visibility": "private" },
+      { "name": "y", "type": { "kind": "field" }, "visibility": "private" },
+      { "name": "z", "type": { "kind": "field" }, "visibility": "public" }
+    ],
+    "return_type": null,
+    "error_types": {}
+  },
+  "bytecode": "H4sIAAAAAAAA/62Q0QqAMAhFW/RBOrXpW7/SyP7/EyrWaIze6oAoPhwuNwyF8ZwwPNR7uTfBzOwpOhKuEC2rAEueFRVFZYtK5MqaLFsCQybHXYx8L1Rn74Vv4PifC65sU9NH20V4+fccKtNJF0wBAAA=",
+  "debug_symbols": "nZDdCoMwDIXfJde9cIxu4KuMIbVGKYS2xHYwxHdfFIsONhi7ys/JdwJngg7bPDTO92GE+jZBy47IDQ0Fa5ILXrbTrKCMTWJEWcFBFyoaRp+g9plIwcNQXo/GaPxak2FRKwXoO6li2DvCpZvVTlff0Yve2OsO69/p8vl6+oPW+jN9l8lYx29ZQQX1eV7M2JmWcMuvz94e4kzPWJQSeORgscuMi92qyYMX",
+  "file_map": {
+    "50": {
+      "source": "fn main(x: Field, y: Field, z: pub Field) {\n    assert(z == x * (y + y));\n}\n",
+      "path": "/home/ally/DevEnv/pvtDock/deploy_files/project-ease/circuits/src/main.nr"
+    }
+  },
+  "names": ["main"],
+  "brillig_names": []
+}

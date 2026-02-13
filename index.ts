@@ -1,122 +1,102 @@
-import { UltraHonkBackend } from "@aztec/bb.js";
-import { CompiledCircuit, Noir } from "@noir-lang/noir_js";
-import circuit from "./circuits/target/circuit_name.json";
-import { uint8ArrayToHex, flattenFieldsAsArray } from "./utils";
+import { CircuitDir } from "./types";
+import { setupProver } from "./setup_prover";
+import { registerVk } from "./register_vk";
 import fs from "fs";
 import path from "path";
 import axios from "axios";
 import dotenv from "dotenv";
+import {
+  extractAbiParameters,
+  loadCircuitAbi,
+  uint8ArrayToHex,
+  validateAbiInput,
+} from "./utils";
+import console from "console";
 dotenv.config();
 
-async function main() {
+export async function verifyKurier(
+  circuit_name: CircuitDir,
+  inputs: Record<string, any>,
+) {
   try {
-    if (!circuit.bytecode) {
-      throw new Error("[ERR: Circuit] Circuit bytecode not found");
-    }
-
-    console.log("## Setting up Noir and Barretenberg");
-    const noir = new Noir(circuit as CompiledCircuit);
-    const backend = new UltraHonkBackend(circuit.bytecode);
-
-    console.log("## Generating Verification Key");
-    const verification_key = await backend.getVerificationKey({ keccak: true });
-    if (!verification_key) {
-      throw new Error("[ERR: Verification Key] Verification key not found");
-    }
-    const vkey = uint8ArrayToHex(verification_key);
-    const path_to_vkey = path.join(
-      __dirname,
-      "circuits",
-      "target",
-      "circuit_name_vkey.hex",
-    );
-    fs.writeFileSync(path_to_vkey, vkey);
-
-    const regParams = {
-      proofType: "ultrahonk",
-      proofOptions: {
-        variant: "ZK",
-      },
-      vk: `${vkey}`,
-    };
-
-    const { KURIER_API, KURIER_URL } = process.env;
-    if (!KURIER_API || !KURIER_URL) {
+    const { KURIER_URL, KURIER_API } = process.env;
+    if (!KURIER_URL || !KURIER_API) {
       throw new Error("[ERR: Env] Missing environment variables");
     }
 
-    console.log("## Registering Verification Key with Kurier");
-    const regResponse = await axios.post(
-      `${KURIER_URL}/register-vk/${KURIER_API}`,
-      regParams,
-    );
-    const circuit_name: string = "circuit_name";
-    const reg_key_path = path.join(
+    const VK_HASH_PATH = path.join(
       __dirname,
-      "kurier_vkey",
-      `${circuit_name}_vk.json`,
+      "circuits",
+      "target",
+      `${circuit_name}_vkHash.json`,
     );
-    fs.writeFileSync(reg_key_path, JSON.stringify(regResponse.data));
-
-    const vk = JSON.parse(fs.readFileSync(reg_key_path, "utf8"));
-    const zk_vkey = vk.vkHash || vk.meta.vkHash;
-    if (!zk_vkey) {
+    if (!fs.existsSync(VK_HASH_PATH)) {
+      console.log(
+        "[WARN: Verification Key] VK hash not found, registering new VK",
+      );
+      await registerVk(circuit_name);
+    }
+    const vkey = JSON.parse(fs.readFileSync(VK_HASH_PATH, "utf8"));
+    const vkHash = vkey.vkHash || vkey.meta.vkHash;
+    if (!vkHash) {
       throw new Error("[ERR: ZKV] Verification key not found");
     }
+    console.log(`## vkHash found: ${vkHash}`);
 
-    console.log("## Creating the private witness");
-    const age = 56;
-    const { witness } = await noir.execute({ age });
+    const { noir, backend } = setupProver(circuit_name);
+
+    console.log("## Extracting parameters and matching inpus");
+    const abi = loadCircuitAbi(circuit_name);
+    validateAbiInput(inputs, abi);
+    const params = extractAbiParameters(inputs, abi);
+    console.log("## Creating pivate witness");
+    const { witness } = await noir.execute(params);
 
     console.log("## Generating Proof");
-    const proof_data = await backend.generateProof(witness, { keccak: true });
-    const proof = uint8ArrayToHex(proof_data.proof);
-    const public_inputs = uint8ArrayToHex(
-      flattenFieldsAsArray(proof_data.publicInputs),
-    );
+    const proof_data = await backend.generateProof(witness, {
+      keccak: true,
+    });
 
-    const path_to_proof = path.join(
+    const PATH_TO_PROOF_HEX = path.join(
       __dirname,
       "circuits",
       "target",
-      "circuit_name_proof.hex",
+      `${circuit_name}_proof.hex`,
     );
-    fs.writeFileSync(path_to_proof, proof);
 
-    const path_to_public_inputs = path.join(
-      __dirname,
-      "circuits",
-      "target",
-      "circuit_name_public_inputs.hex",
+    const proofHex = uint8ArrayToHex(proof_data.proof);
+    const formattedPublicInputs = proof_data.publicInputs.map((pi) =>
+      pi.startsWith("0x") ? pi : `0x${pi}`,
     );
-    fs.writeFileSync(path_to_public_inputs, public_inputs);
 
-    console.log("## Verifying Proof w/ BB.js");
-    const is_valid = await backend.verifyProof(proof_data, { keccak: true });
-    if (!is_valid) {
-      throw new Error("[ERR: Proof] Proof verification failed");
+    fs.writeFileSync(PATH_TO_PROOF_HEX, proofHex);
+    if (!fs.existsSync(PATH_TO_PROOF_HEX)) {
+      throw new Error("[ERR: Proof] Failed to write proof to file");
     }
 
-    console.log("## Verifying Proof w/ ZKV");
     const proof_payload = {
       proofType: "ultrahonk",
       vkRegistered: true,
-      chainId: 84532,
-      proofData: {
-        proof: proof,
-        publicSignals: proof_data.publicInputs,
-        vk: zk_vkey,
-      },
       proofOptions: {
-        variant: "ZK",
+        variant: "zk",
       },
+      proofData: {
+        proof: proofHex,
+        publicSignals: formattedPublicInputs,
+        vk: vkHash as string,
+      },
+      submissionMode: "attestation",
     };
 
-    const proof_response = await axios.post(
+    fs.writeFileSync("proof_payload.json", JSON.stringify(proof_payload));
+
+    console.log("## Submitting Proof to Kurier");
+    const submit_response = await axios.post(
       `${KURIER_URL}/submit-proof/${KURIER_API}`,
       proof_payload,
     );
-    console.log("Proof response status code:", proof_response.status);
+
+    console.log("Proof response status code:", submit_response.status);
 
     const path_to_submit_proof_response = path.join(
       __dirname,
@@ -125,42 +105,56 @@ async function main() {
 
     fs.writeFileSync(
       path_to_submit_proof_response,
-      JSON.stringify(proof_response.data),
+      JSON.stringify(submit_response.data),
     );
 
-    if (proof_response.data.optimisticVerify !== "success") {
-      throw new Error("[ERR: ZKV] Proof verification failed");
+    console.log(
+      `==> Submit Response:\n`,
+      JSON.stringify(submit_response.data, null, 2),
+    );
+    if (submit_response.data.optimisticVerify !== "success") {
+      throw new Error(
+        "[ERR: Proof Verification] Optimistic verification failed",
+      );
     }
-    console.log("Proof verified successfully");
 
-    const job_id = proof_response.data.jobId;
-    console.log(`##Job ID: ${job_id}`);
+    const jobId = submit_response.data.jobId;
+    console.log(`## Proof submitted successfully. Job ID: ${jobId}`);
 
     while (true) {
       const job_status_response = await axios.get(
-        `${KURIER_URL}/job-status/${KURIER_API}/${job_id}`,
+        `${KURIER_URL}/job-status/${KURIER_API}/${jobId}`,
       );
       if (job_status_response.data.status === "Aggregated") {
         console.log("##Job aggregated successfully");
         console.log(job_status_response.data);
+
+        // Create aggregations directory if it doesn't exist
+        const aggregations_dir = path.join(__dirname, "aggregations");
+        if (!fs.existsSync(aggregations_dir)) {
+          fs.mkdirSync(aggregations_dir, { recursive: true });
+        }
+
         const aggregation_path = path.join(
-          __dirname,
-          "aggregations",
-          `${job_id}.json`, // job_status_response.data.aggregationId
+          aggregations_dir,
+          `${job_status_response.data.aggregation_id}.json`,
         );
         fs.writeFileSync(
           aggregation_path,
-          JSON.stringify(job_status_response.data),
+          JSON.stringify(job_status_response.data, null, 2),
         );
+        console.log(`## Aggregation result saved to ${aggregation_path}`);
+        break; // Exit loop after successful aggregation
+      } else if (job_status_response.data.status === "Failed") {
+        console.error("##Job failed:", job_status_response.data);
+        throw new Error("[ERR: ZKV] Proof aggregation failed");
       } else {
         console.log("##Job status: ", job_status_response.data.status);
-        console.log(`\n..Waiting for job to aggregated...\n`);
-        await new Promise((resolve) => setTimeout(resolve, 20000)); // Wait for 5 seconds before checking again
+        console.log(`==> Waiting for job to be aggregated...`);
+        await new Promise((resolve) => setTimeout(resolve, 20000)); // Wait for 20 seconds before checking again
       }
     }
   } catch (error) {
-    console.error(error);
+    console.error(`Error verifying proof with Kurier:\n`, error);
   }
 }
-
-main();

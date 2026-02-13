@@ -1,3 +1,3 @@
-fn main(age: u8) {
-    assert(age > 29);
+fn main(x: Field, y: Field, z: pub Field) {
+    assert(z == x * (y + y));
 }
