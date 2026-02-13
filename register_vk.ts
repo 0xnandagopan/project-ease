@@ -45,8 +45,10 @@ export async function registerVk(circuit_name: CircuitDir) {
       },
       vk: `${vkey}`,
     };
-    fs.writeFileSync("regVk_payload.json", JSON.stringify(vk_payload));
-    
+    fs.writeFileSync(
+      "./payloads_and_respones/regVk_payload.json",
+      JSON.stringify(vk_payload),
+    );
 
     console.log("## Registering Verification Key at Kurier");
     const reg_vk_response = await axios.post(

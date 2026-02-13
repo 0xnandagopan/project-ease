@@ -1,6 +1,6 @@
 {
   "noir_version": "1.0.0-beta.6+e796dfd67726cbc28eb9991782533b211025928d",
-  "hash": "10057895297951980243",
+  "hash": "6358645225333969660",
   "abi": {
     "parameters": [
       { "name": "x", "type": { "kind": "field" }, "visibility": "private" },
@@ -10,11 +10,11 @@
     "return_type": null,
     "error_types": {}
   },
-  "bytecode": "H4sIAAAAAAAA/62Q0QqAMAhFW/RBOrXpW7/SyP7/EyrWaIze6oAoPhwuNwyF8ZwwPNR7uTfBzOwpOhKuEC2rAEueFRVFZYtK5MqaLFsCQybHXYx8L1Rn74Vv4PifC65sU9NH20V4+fccKtNJF0wBAAA=",
+  "bytecode": "H4sIAAAAAAAA/7WQQQqAMAwE2+KDkiaxyc2vWKz/f4JKK5Ze1YGwkMMyrHeVcJ53D6Hl0pJgZi4pFiRcIVpWAZY8KyqKyhaVqChrsmwJDJkK7mK0Q8X90Oc757sX3oHhuy643KZhz9G7/48cZjNx9JwBAAA=",
   "debug_symbols": "nZDdCoMwDIXfJde9cIxu4KuMIbVGKYS2xHYwxHdfFIsONhi7ys/JdwJngg7bPDTO92GE+jZBy47IDQ0Fa5ILXrbTrKCMTWJEWcFBFyoaRp+g9plIwcNQXo/GaPxak2FRKwXoO6li2DvCpZvVTlff0Yve2OsO69/p8vl6+oPW+jN9l8lYx29ZQQX1eV7M2JmWcMuvz94e4kzPWJQSeORgscuMi92qyYMX",
   "file_map": {
     "50": {
-      "source": "fn main(x: Field, y: Field, z: pub Field) {\n    assert(z == x * (y + y));\n}\n",
+      "source": "fn main(x: Field, y: Field, z: pub Field) {\n    assert(z == x * (y + x));\n}\n",
       "path": "/home/ally/DevEnv/pvtDock/deploy_files/project-ease/circuits/src/main.nr"
     }
   },

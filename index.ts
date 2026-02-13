@@ -74,6 +74,12 @@ export async function verifyKurier(
       throw new Error("[ERR: Proof] Failed to write proof to file");
     }
 
+    console.log("## Verifying Proof w/ BB.js");
+    const is_valid = await backend.verifyProof(proof_data, { keccak: true });
+    if (!is_valid) {
+      throw new Error("[ERR: Proof] Proof verification failed");
+    }
+
     const proof_payload = {
       proofType: "ultrahonk",
       vkRegistered: true,
@@ -88,7 +94,10 @@ export async function verifyKurier(
       submissionMode: "attestation",
     };
 
-    fs.writeFileSync("proof_payload.json", JSON.stringify(proof_payload));
+    fs.writeFileSync(
+      "./payloads_and_respones/proof_payload.json",
+      JSON.stringify(proof_payload),
+    );
 
     console.log("## Submitting Proof to Kurier");
     const submit_response = await axios.post(
@@ -100,6 +109,7 @@ export async function verifyKurier(
 
     const path_to_submit_proof_response = path.join(
       __dirname,
+      "payloads_and_respones",
       "proof_response.json",
     );
 
